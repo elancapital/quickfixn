@@ -23,6 +23,11 @@ namespace QuickFix
         public const string CONNECTION_TYPE = "ConnectionType";
         public const string USE_DATA_DICTIONARY = "UseDataDictionary";
         public const string NON_STOP_SESSION = "NonStopSession";
+        public const string HAS_DOWNTIME = "HasDowntime";
+        public const string DOWNTIME_START_DAY = "DowntimeStartDay";
+        public const string DOWNTIME_END_DAY = "DowntimeEndDay";
+        public const string DOWNTIME_START_TIME = "DowntimeStartTime";
+        public const string DOWNTIME_END_TIME = "DowntimeEndTime";
         public const string USE_LOCAL_TIME = "UseLocalTime";
         public const string TIME_ZONE = "TimeZone";
         public const string START_DAY = "StartDay";

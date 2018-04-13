@@ -7,6 +7,12 @@ namespace QuickFix
         public System.TimeSpan StartTime { get; private set; }
         public System.TimeSpan EndTime { get; private set; }
 
+        public bool HasDowntime { get; private set; }
+        public System.TimeSpan DowntimeStartTime { get; private set; }
+        public System.TimeSpan DowntimeEndTime { get; private set; }
+        public System.DayOfWeek DowntimeStartDay { get; private set; }
+        public System.DayOfWeek DowntimeEndDay { get; private set; }
+
         public bool WeeklySession { get; private set; }
         public System.DayOfWeek StartDay { get; private set; }
         public System.DayOfWeek EndDay { get; private set; }
@@ -73,10 +79,28 @@ namespace QuickFix
 
             System.DateTime adjusted = AdjustUtcDateTime(utc);
 
-            if (WeeklySession)
+            if (IsDowntime(adjusted))
+                return false;
+            else if (WeeklySession)
                 return CheckDay(adjusted);
             else
                 return CheckTime(adjusted.TimeOfDay);
+        }
+
+        public DateTime NextEvent(System.DateTime d, System.DayOfWeek eventDay, TimeSpan eventTime)
+        {
+            var nextEvent = new DateTime(d.Year, d.Month, d.Day, eventTime.Hours, eventTime.Minutes, eventTime.Seconds, d.Kind);
+            while (nextEvent.DayOfWeek != eventDay)
+                nextEvent = nextEvent.AddDays(1);
+            if (DateTime.Compare(d, nextEvent) > 0) // d is later than end
+                nextEvent = nextEvent.AddDays(7);
+
+            return nextEvent;
+        }
+
+        public bool IsDowntime(System.DateTime d)
+        {
+            return HasDowntime && NextEvent(d, DowntimeEndDay, DowntimeEndTime) < NextEvent(d, DowntimeStartDay, DowntimeStartTime);
         }
 
         /// <summary>
@@ -110,6 +134,15 @@ namespace QuickFix
                 end = new DateTime(d.Year, d.Month, d.Day, EndTime.Hours, EndTime.Minutes, EndTime.Seconds, d.Kind);
                 if (DateTime.Compare(d, end) > 0) // d is later than end
                     end = end.AddDays(1);
+            }
+
+            if(HasDowntime)
+            {
+                var nextDowntime = NextEvent(d, DowntimeStartDay, DowntimeStartTime);
+                if(nextDowntime < end)
+                {
+                    end = nextDowntime;
+                }
             }
 
             return end;
@@ -249,6 +282,39 @@ namespace QuickFix
                 StartDay = settings.GetDay(SessionSettings.START_DAY);
                 EndDay = settings.GetDay(SessionSettings.END_DAY);
                 WeeklySession = true;
+            }
+
+            if (settings.Has(SessionSettings.HAS_DOWNTIME))
+            {
+                HasDowntime = settings.GetBool(SessionSettings.HAS_DOWNTIME);
+            }
+            if(HasDowntime)
+            {
+                if (!settings.Has(SessionSettings.DOWNTIME_START_DAY) && settings.Has(SessionSettings.DOWNTIME_END_DAY))
+                {
+                    throw new QuickFix.ConfigError("DowntimeEndDay used without DowntimeStartDay");
+                }
+
+                if (settings.Has(SessionSettings.DOWNTIME_START_DAY) && !settings.Has(SessionSettings.DOWNTIME_END_DAY))
+                {
+                    throw new QuickFix.ConfigError("DowntimeStartDay used without DowntimeEndDay");
+                }
+
+                DowntimeStartDay = settings.GetDay(SessionSettings.DOWNTIME_START_DAY);
+                DowntimeEndDay = settings.GetDay(SessionSettings.DOWNTIME_END_DAY);
+
+                try
+                {
+                    this.DowntimeStartTime = System.TimeSpan.Parse(
+                        settings.GetString(SessionSettings.DOWNTIME_START_TIME));
+
+                    this.DowntimeEndTime = System.TimeSpan.Parse(
+                        settings.GetString(SessionSettings.DOWNTIME_END_TIME));
+                }
+                catch (System.FormatException e)
+                {
+                    throw new ConfigError(e.Message);
+                }
             }
 
             if (settings.Has(SessionSettings.USE_LOCAL_TIME))
