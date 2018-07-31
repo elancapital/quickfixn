@@ -1,4 +1,6 @@
 ﻿
+using QuickFix.Util;
+
 namespace QuickFix
 {
     /// <summary>
@@ -18,14 +20,13 @@ namespace QuickFix
 
         public FileLog(string fileLogPath)
         {
-            Init(fileLogPath, "GLOBAL");
+            IORetry.Try(() => Init(fileLogPath, "GLOBAL"));
         }
 
         public FileLog(string fileLogPath, SessionID sessionID)
         {
-            Init(fileLogPath, Prefix(sessionID));
-        }   
-        
+            IORetry.Try(() => Init(fileLogPath, Prefix(sessionID)));
+        }
 
         private void Init(string fileLogPath, string prefix)
         {
@@ -35,8 +36,8 @@ namespace QuickFix
             messageLogFileName_ = System.IO.Path.Combine(fileLogPath, prefix + ".messages.current.log");
             eventLogFileName_ = System.IO.Path.Combine(fileLogPath, prefix + ".event.current.log");
 
-            messageLog_ = new System.IO.StreamWriter(messageLogFileName_,true);
-            eventLog_ = new System.IO.StreamWriter(eventLogFileName_,true);
+            messageLog_ = new System.IO.StreamWriter(messageLogFileName_, true);
+            eventLog_ = new System.IO.StreamWriter(eventLogFileName_, true);
 
             messageLog_.AutoFlush = true;
             eventLog_.AutoFlush = true;
@@ -76,14 +77,19 @@ namespace QuickFix
 
             lock (sync_)
             {
-                messageLog_.Close();
-                eventLog_.Close();
+                IORetry.Try(() =>
+                {
+                    messageLog_.Close();
+                    messageLog_ = new System.IO.StreamWriter(messageLogFileName_, false);
+                    messageLog_.AutoFlush = true;
+                }, true);
 
-                messageLog_ = new System.IO.StreamWriter(messageLogFileName_, false);
-                eventLog_ = new System.IO.StreamWriter(eventLogFileName_, false);
-
-                messageLog_.AutoFlush = true;
-                eventLog_.AutoFlush = true;
+                IORetry.Try(() =>
+                {
+                    eventLog_.Close();
+                    eventLog_ = new System.IO.StreamWriter(eventLogFileName_, false);
+                    eventLog_.AutoFlush = true;
+                }, true);
             }
         }
 
@@ -93,7 +99,7 @@ namespace QuickFix
 
             lock (sync_)
             {
-                messageLog_.WriteLine(Fields.Converters.DateTimeConverter.Convert(System.DateTime.UtcNow) + " : " + msg);
+                IORetry.Try(() => messageLog_.WriteLine(Fields.Converters.DateTimeConverter.Convert(System.DateTime.UtcNow) + " : " + msg), false);
             }
         }
 
@@ -103,7 +109,7 @@ namespace QuickFix
 
             lock (sync_)
             {
-                messageLog_.WriteLine(Fields.Converters.DateTimeConverter.Convert(System.DateTime.UtcNow) + " : " + msg);
+                IORetry.Try(() => messageLog_.WriteLine(Fields.Converters.DateTimeConverter.Convert(System.DateTime.UtcNow) + " : " + msg), false);
             }
         }
 
@@ -113,7 +119,7 @@ namespace QuickFix
 
             lock (sync_)
             {
-                eventLog_.WriteLine(Fields.Converters.DateTimeConverter.Convert(System.DateTime.UtcNow) + " : "+ s);
+                IORetry.Try(() => eventLog_.WriteLine(Fields.Converters.DateTimeConverter.Convert(System.DateTime.UtcNow) + " : " + s), false);
             }
         }
 

@@ -1,6 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 using QuickFix.Util;
 
 namespace QuickFix
@@ -67,7 +70,7 @@ namespace QuickFix
             headerFileName_ = System.IO.Path.Combine(path, prefix + ".header");
             sessionFileName_ = System.IO.Path.Combine(path, prefix + ".session");
 
-            open();
+            IORetry.Try(open, true);
         }
 
         private void open()
@@ -179,16 +182,18 @@ namespace QuickFix
             {
                 if (offsets_.ContainsKey(i))
                 {
-                    msgFile_.Seek(offsets_[i].index, System.IO.SeekOrigin.Begin);
-                    byte[] msgBytes = new byte[offsets_[i].size];
-                    msgFile_.Read(msgBytes, 0, msgBytes.Length);
-
-                    messages.Add(Encoding.UTF8.GetString(msgBytes));
+                    IORetry.Try(() =>
+                    {
+                        msgFile_.Seek(offsets_[i].index, System.IO.SeekOrigin.Begin);
+                        byte[] msgBytes = new byte[offsets_[i].size];
+                        msgFile_.Read(msgBytes, 0, msgBytes.Length);
+                        messages.Add(Encoding.UTF8.GetString(msgBytes));
+                    });
                 }
             }
 
         }
-        
+
         /// <summary>
         /// Store a message
         /// </summary>
@@ -197,23 +202,24 @@ namespace QuickFix
         /// <returns></returns>
         public bool Set(int msgSeqNum, string msg)
         {
-            msgFile_.Seek(0, System.IO.SeekOrigin.End);
+            IORetry.Try(() =>
+            {
+                msgFile_.Seek(0, System.IO.SeekOrigin.End);
 
-            long offset = msgFile_.Position;
-            byte[] msgBytes = Encoding.UTF8.GetBytes(msg);
-            int size = msgBytes.Length;
+                long offset = msgFile_.Position;
+                byte[] msgBytes = Encoding.UTF8.GetBytes(msg);
+                int size = msgBytes.Length;
 
-            StringBuilder b = new StringBuilder();
-            b.Append(msgSeqNum).Append(",").Append(offset).Append(",").Append(size);
-            headerFile_.WriteLine(b.ToString());
-            headerFile_.Flush();
+                StringBuilder b = new StringBuilder();
+                b.Append(msgSeqNum).Append(",").Append(offset).Append(",").Append(size);
+                headerFile_.WriteLine(b.ToString());
+                IORetry.Try(headerFile_.Flush, false);
 
-            offsets_[msgSeqNum] = new MsgDef(offset, size);
+                offsets_[msgSeqNum] = new MsgDef(offset, size);
 
-            msgFile_.Write(msgBytes, 0, size);
-            msgFile_.Flush();
-
-
+                msgFile_.Write(msgBytes, 0, size);
+                IORetry.Try(msgFile_.Flush, false);
+            }, false);
             return true;
         }
 
@@ -253,11 +259,14 @@ namespace QuickFix
 
         private void setSeqNum()
         {
-            seqNumsFile_.Seek(0, System.IO.SeekOrigin.Begin);
-            System.IO.StreamWriter writer = new System.IO.StreamWriter(seqNumsFile_);
+            IORetry.Try(() =>
+            {
+                seqNumsFile_.Seek(0, System.IO.SeekOrigin.Begin);
+                System.IO.StreamWriter writer = new System.IO.StreamWriter(seqNumsFile_);
 
-            writer.Write(GetNextSenderMsgSeqNum().ToString("D10") + " : " + GetNextTargetMsgSeqNum().ToString("D10") + "  ");
-            writer.Flush();
+                writer.Write(GetNextSenderMsgSeqNum().ToString("D10") + " : " + GetNextTargetMsgSeqNum().ToString("D10") + "  ");
+                writer.Flush();
+            }, false);
         }
 
         public DateTime? CreationTime
@@ -277,8 +286,8 @@ namespace QuickFix
         public void Reset()
         {
             cache_.Reset();
-            PurgeFileCache();
-            open();
+            IORetry.Try(PurgeFileCache, true);
+            IORetry.Try(open, true);
         }
 
         public void Refresh()
