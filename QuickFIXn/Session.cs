@@ -641,7 +641,7 @@ namespace QuickFix
                 catch (MessageParseError)
                 { }
 
-                throw e;
+                GenerateReject(msgBuilder, FixValues.SessionRejectReason.OTHER);
             }
             catch (TagException e)
             {
