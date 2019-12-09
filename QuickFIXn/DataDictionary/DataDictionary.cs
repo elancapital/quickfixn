@@ -556,6 +556,11 @@ namespace QuickFix.DataDictionary
                 Console.WriteLine(s);
                 */
 
+                if (childNode.Attributes == null)
+                {
+                    continue;
+                }
+
 			    var fieldName = (childNode.Attributes["name"] != null) ? childNode.Attributes["name"].Value : "no-name";
 
                 if ( childNode.Name == "field" )
