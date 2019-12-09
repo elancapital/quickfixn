@@ -196,7 +196,7 @@ namespace QuickFix.Transport
                 try
                 {
                     // Setup secure SSL Communication
-                    var clientCertificates = GetClientCertificates();
+                    var clientCertificates = GetClientCertificates(socketSettings_.CheckCertificateExpiry);
                     sslStream.AuthenticateAsClient(socketSettings_.ServerCommonName,
                         clientCertificates,
                         socketSettings_.SslProtocol,
@@ -241,12 +241,41 @@ namespace QuickFix.Transport
                 return sslStream;
             }
 
-            private X509CertificateCollection GetClientCertificates()
+            private X509CertificateCollection GetClientCertificates(bool checkExpiry)
             {
-                if (!string.IsNullOrEmpty(socketSettings_.CertificatePath))
+                var certName = socketSettings_.CertificatePath;
+                if (!string.IsNullOrEmpty(certName))
                 {
                     X509CertificateCollection certificates = new X509Certificate2Collection();
-                    var clientCert = StreamFactory.LoadCertificate(socketSettings_.CertificatePath, socketSettings_.CertificatePassword);
+                    var clientCert = StreamFactory.LoadCertificate(certName, socketSettings_.CertificatePassword);
+
+                    if (checkExpiry)
+                    {
+                        try
+                        {
+                            if (clientCert.NotAfter < DateTime.Now)
+                            {
+                                log_.OnEvent($"Error - SSL certificate {certName} expired on {clientCert.NotAfter:yyyy-MM-dd}");
+                            }
+                            else if (clientCert.NotAfter <= DateTime.Now.AddDays(7))
+                            {
+                                log_.OnEvent($"Error - SSL certificate {certName} nears expiry on {clientCert.NotAfter:yyyy-MM-dd}");
+                            }
+                            else if (clientCert.NotAfter <= DateTime.Now.AddMonths(1))
+                            {
+                                log_.OnEvent($"Warning - SSL certificate {certName} nears expiry on {clientCert.NotAfter:yyyy-MM-dd}");
+                            }
+                            else
+                            {
+                                log_.OnEvent($"SSL certificate {certName} expires on {clientCert.NotAfter:yyyy-MM-dd}");
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            log_.OnEvent($"Unable to check SSL certificate {certName} expiry: {ex.Message}");
+                        }
+                    }
+
                     certificates.Add(clientCert);
                     return certificates;
                 }
