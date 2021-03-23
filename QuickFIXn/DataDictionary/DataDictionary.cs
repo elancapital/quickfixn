@@ -605,6 +605,11 @@ namespace QuickFix.DataDictionary
                 Console.WriteLine(s);
                 */
 
+                if (childNode.Attributes == null)
+                {
+                    continue;
+                }
+
                 VerifyChildNode(childNode, node);
 
                 var nameAttribute = childNode.Attributes["name"].Value;
