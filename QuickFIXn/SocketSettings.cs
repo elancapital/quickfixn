@@ -112,6 +112,14 @@ namespace QuickFix
         public bool CheckCertificateRevocation { get; internal set; }
 
         /// <summary>
+        /// Gets a value indicating whether the log client certificate expiry
+        /// </summary>
+        /// <value>
+        /// <c>true</c> if client certificate expiry should be checked and logged; otherwise, <c>false</c>.
+        /// </value>
+        public bool CheckCertificateExpiry { get; internal set; }
+
+        /// <summary>
         /// Gets a value indicating whether SSL should be used for the socket.
         /// </summary>
         /// <value>
@@ -196,6 +204,9 @@ namespace QuickFix
                 // can only be true if ValdateCertificates is true (this is noted in the config docs)
                 CheckCertificateRevocation = ValidateCertificates && dictionary.GetBool(SessionSettings.SSL_CHECK_CERTIFICATE_REVOCATION);
             }
+
+            if (dictionary.Has(SessionSettings.SSL_CHECK_CERTIFICATE_EXPIRY))
+                CheckCertificateExpiry = dictionary.GetBool(SessionSettings.SSL_CHECK_CERTIFICATE_EXPIRY);
 
             // Use setting for client certificate check if one exist 
             // otherwise enable client certificate check if a ca certificate is specified
